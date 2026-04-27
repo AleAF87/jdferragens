@@ -1,0 +1,62 @@
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold d-flex align-items-center" href="dashboard.html">
+            <img src="img/logo.png" alt="JD Ferragens" class="navbar-logo me-2">
+            <span>JD Ferragens</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Abrir menu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="dashboard.html" id="navDashboard">
+                        <i class="fas fa-chart-line me-1"></i>Dashboard
+                    </a>
+                </li>
+                <li class="nav-item" data-max-level="2">
+                    <a class="nav-link" href="estoque.html" id="navEstoque">
+                        <i class="fas fa-boxes-stacked me-1"></i>Estoque
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="solicitar.html" id="navSolicitar">
+                        <i class="fas fa-cart-plus me-1"></i>Solicitar
+                    </a>
+                </li>
+                <li class="nav-item" data-max-level="2">
+                    <a class="nav-link" href="solicitacoes.html" id="navSolicitacoes">
+                        <i class="fas fa-clipboard-list me-1"></i>Solicitacoes
+                    </a>
+                </li>
+                <li class="nav-item" data-max-level="2">
+                    <a class="nav-link" href="cadastro.html" id="navCadastro">
+                        <i class="fas fa-plus me-1"></i>Cadastro
+                    </a>
+                </li>
+            </ul>
+
+            <div class="dropdown">
+                <button class="btn btn-outline-light dropdown-toggle d-flex align-items-center" type="button" data-bs-toggle="dropdown" id="userGreetingDropdown">
+                    <i class="fas fa-user me-2"></i>
+                    <span id="userGreeting">Carregando...</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item" href="perfil.html" id="navProfile">
+                            <i class="fas fa-id-card me-1"></i>Perfil
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item text-danger" href="#" id="navLogout">
+                            <i class="fas fa-sign-out-alt me-1"></i>Sair
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav>
