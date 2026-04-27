@@ -1,5 +1,12 @@
 import { database } from './firebase-config.js';
-import { ref, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const dashboardState = {
+    solicitacoes: [],
+    pendingUsers: [],
+    unsubscribeSolicitacoes: null,
+    unsubscribePendentes: null
+};
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -11,10 +18,12 @@ function escapeHtml(value) {
 }
 
 function getLevelLabel(level) {
-    const normalized = String(level || '3');
+    const normalized = String(level || '5');
     if (normalized === '1') return 'Administrador';
-    if (normalized === '2') return 'Operador';
-    return 'Usuario';
+    if (normalized === '2') return 'Moderador';
+    if (normalized === '3') return 'Vendedor';
+    if (normalized === '4') return 'Reserva';
+    return 'Cliente';
 }
 
 function formatBRL(value) {
@@ -56,6 +65,8 @@ function renderSolicitacaoModal(solicitacao) {
                     <div class="modal-body">
                         <div class="d-flex justify-content-between gap-3 flex-wrap mb-3">
                             <div>
+                                <span class="section-label">Solicitante</span>
+                                <h3 class="h5 mb-2">${escapeHtml(solicitacao?.solicitanteNome || sessionStorage.getItem('userName') || 'Usuario')}</h3>
                                 <span class="section-label">Status</span>
                                 <h3 class="h5 mb-0">${escapeHtml(getStatusLabel(solicitacao))}</h3>
                             </div>
@@ -112,16 +123,144 @@ function renderSolicitacoesCards(solicitacoes = []) {
     return `
         <div class="dashboard-request-grid">
             ${solicitacoes.map((solicitacao) => `
-                <button class="dashboard-request-card ${getStatusClass(solicitacao.status)}"
-                        type="button"
-                        data-request-id="${escapeHtml(solicitacao.id)}">
+                <article class="dashboard-request-card ${getStatusClass(solicitacao.status)}"
+                         data-request-id="${escapeHtml(solicitacao.id)}">
                     <span>${escapeHtml(formatDate(solicitacao.criadoEm))}</span>
                     <strong>${escapeHtml(getStatusLabel(solicitacao))}</strong>
                     <small>${Number(solicitacao.quantidadeItens || 0)} item(ns) | ${escapeHtml(formatBRL(solicitacao.total || 0))}</small>
+                    ${solicitacao.status === 'solicitado' ? `
+                        <button class="btn btn-sm btn-outline-danger mt-2" type="button" data-cancel-request="${escapeHtml(solicitacao.id)}">
+                            <i class="fas fa-ban me-1"></i>Cancelar
+                        </button>
+                    ` : ''}
+                </article>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderPendingUsers(pendingUsers = []) {
+    if (!pendingUsers.length) {
+        return `
+            <div class="empty-state compact-empty-state">
+                <i class="fas fa-user-check"></i>
+                <h2>Nenhum usuario pendente</h2>
+                <p>Novas solicitacoes de acesso aparecerao aqui.</p>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="dashboard-request-grid">
+            ${pendingUsers.map((user) => `
+                <button class="dashboard-request-card is-warning"
+                        type="button"
+                        data-pending-user-cpf="${escapeHtml(user.cpf)}">
+                    <span>${escapeHtml(formatDate(user.criadoEm || user.atualizadoEm))}</span>
+                    <strong>${escapeHtml(user.nome || 'Usuario sem nome')}</strong>
+                    <small>${escapeHtml(user.email || '-')} | CPF ${escapeHtml(user.cpf)}</small>
                 </button>
             `).join('')}
         </div>
     `;
+}
+
+async function getPendingUsersForApproval() {
+    const [loginSnapshot, usuariosSnapshot] = await Promise.all([
+        get(ref(database, 'login')),
+        get(ref(database, 'usuarios'))
+    ]);
+
+    const login = loginSnapshot.val() || {};
+    const usuarios = usuariosSnapshot.val() || {};
+
+    return Object.entries(login)
+        .filter(([, data]) => String(data?.status || '').toLowerCase() === 'pendente')
+        .map(([cpf, data]) => ({
+            cpf,
+            ...(usuarios?.[cpf] || {}),
+            ...data
+        }))
+        .sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
+}
+
+function renderUserRequestsSection() {
+    const container = document.getElementById('dashboardSolicitacoesList');
+    if (!container) return;
+    container.innerHTML = renderSolicitacoesCards(dashboardState.solicitacoes);
+}
+
+function renderPendingUsersSection() {
+    const container = document.getElementById('dashboardPendingUsersList');
+    if (!container) return;
+    container.innerHTML = renderPendingUsers(dashboardState.pendingUsers);
+}
+
+function bindRealtimeDashboard(userCpf, userLevel) {
+    if (dashboardState.unsubscribeSolicitacoes) dashboardState.unsubscribeSolicitacoes();
+    if (dashboardState.unsubscribePendentes) dashboardState.unsubscribePendentes();
+
+    dashboardState.unsubscribeSolicitacoes = onValue(ref(database, `usuariosSolicitacoes/${userCpf}`), (snapshot) => {
+        dashboardState.solicitacoes = Object.values(snapshot.val() || {})
+            .filter((solicitacao) => solicitacao.status !== 'cancelado')
+            .sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
+        renderUserRequestsSection();
+    });
+
+    if (Number(userLevel || 5) === 1) {
+        dashboardState.unsubscribePendentes = onValue(ref(database, 'login'), async () => {
+            dashboardState.pendingUsers = await getPendingUsersForApproval();
+            renderPendingUsersSection();
+        });
+    }
+}
+
+async function buildStockReturnUpdates(itens = []) {
+    const productsSnapshot = await get(ref(database, 'produtos'));
+    const products = productsSnapshot.val() || {};
+    const updates = {};
+
+    itens.forEach((item) => {
+        const currentStock = Number(products?.[item.produtoId]?.quantidade || 0);
+        updates[`produtos/${item.produtoId}/quantidade`] = currentStock + Number(item.quantidade || 0);
+    });
+
+    return updates;
+}
+
+async function cancelarSolicitacao(solicitacao) {
+    if (!solicitacao || solicitacao.status !== 'solicitado') {
+        alert('Esta solicitacao ja esta em separacao e nao pode ser cancelada pelo solicitante.');
+        return false;
+    }
+
+    const confirmed = confirm('Deseja cancelar esta solicitacao? Os itens voltarao para o estoque.');
+    if (!confirmed) return false;
+
+    const now = new Date().toISOString();
+    const stockUpdates = await buildStockReturnUpdates(solicitacao.itens || []);
+    const cancelData = {
+        status: 'cancelado',
+        statusLabel: 'Cancelado',
+        canceladoPorCpf: sessionStorage.getItem('userCPF') || '',
+        canceladoPorNome: sessionStorage.getItem('userName') || 'Usuario',
+        canceladoEm: now,
+        atualizadoEm: now
+    };
+
+    await update(ref(database), {
+        ...stockUpdates,
+        [`solicitacoes/${solicitacao.id}`]: {
+            ...solicitacao,
+            ...cancelData
+        },
+        [`usuariosSolicitacoes/${solicitacao.solicitanteCpf}/${solicitacao.id}`]: {
+            ...solicitacao,
+            ...cancelData
+        }
+    });
+
+    return true;
 }
 
 export async function initPage() {
@@ -134,17 +273,15 @@ export async function initPage() {
         nome: storedName,
         cpf: userCPF,
         email: '',
-        nivel: sessionStorage.getItem('currentUserLevel') || '3',
+        nivel: sessionStorage.getItem('currentUserLevel') || '5',
         status: 'ativo'
     };
 
     try {
-        let solicitacoes = [];
         if (userCPF) {
-            const [usuarioSnapshot, loginSnapshot, solicitacoesSnapshot] = await Promise.all([
+            const [usuarioSnapshot, loginSnapshot] = await Promise.all([
                 get(ref(database, `usuarios/${userCPF}`)),
-                get(ref(database, `login/${userCPF}`)),
-                get(ref(database, `usuariosSolicitacoes/${userCPF}`))
+                get(ref(database, `login/${userCPF}`))
             ]);
 
             userData = {
@@ -154,8 +291,6 @@ export async function initPage() {
                 cpf: userCPF
             };
 
-            solicitacoes = Object.values(solicitacoesSnapshot.val() || {})
-                .sort((a, b) => String(b.criadoEm || '').localeCompare(String(a.criadoEm || '')));
         }
 
         dashboardContent.innerHTML = `
@@ -176,17 +311,74 @@ export async function initPage() {
                         <h1>Pedidos de itens</h1>
                     </div>
                 </div>
-                ${renderSolicitacoesCards(solicitacoes)}
+                <div id="dashboardSolicitacoesList">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="mt-2">Carregando solicitacoes...</p>
+                    </div>
+                </div>
             </div>
+            ${Number(userData.nivel || 5) === 1 ? `
+                <div class="mt-4">
+                    <div class="page-header">
+                        <div>
+                            <span class="section-label">Aprovacoes</span>
+                            <h1>Usuarios pendentes</h1>
+                        </div>
+                    </div>
+                    <div id="dashboardPendingUsersList">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                            <p class="mt-2">Carregando usuarios pendentes...</p>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
             ${renderSolicitacaoModal(null)}
         `;
 
-        dashboardContent.onclick = (event) => {
+        bindRealtimeDashboard(userCPF, userData.nivel);
+
+        dashboardContent.onclick = async (event) => {
+            const pendingUserCard = event.target.closest('[data-pending-user-cpf]');
+            if (pendingUserCard) {
+                const cpf = pendingUserCard.getAttribute('data-pending-user-cpf');
+                sessionStorage.setItem('selectedProfileCpf', cpf);
+                if (window.app?.loadPage) {
+                    await window.app.loadPage(`perfil.html?cpf=${encodeURIComponent(cpf)}`);
+                    return;
+                }
+                window.location.href = `perfil.html?cpf=${encodeURIComponent(cpf)}`;
+                return;
+            }
+
+            const cancelButton = event.target.closest('[data-cancel-request]');
+            if (cancelButton) {
+                event.stopPropagation();
+                const solicitacao = dashboardState.solicitacoes.find((item) => item.id === cancelButton.getAttribute('data-cancel-request'));
+                try {
+                    cancelButton.disabled = true;
+                    cancelButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Cancelando...';
+                    const canceled = await cancelarSolicitacao(solicitacao);
+                    if (canceled) await initPage();
+                    else {
+                        cancelButton.disabled = false;
+                        cancelButton.innerHTML = '<i class="fas fa-ban me-1"></i>Cancelar';
+                    }
+                } catch (error) {
+                    console.error('Erro ao cancelar solicitacao:', error);
+                    alert('Nao foi possivel cancelar: ' + error.message);
+                    cancelButton.disabled = false;
+                    cancelButton.innerHTML = '<i class="fas fa-ban me-1"></i>Cancelar';
+                }
+                return;
+            }
+
             const card = event.target.closest('[data-request-id]');
             if (!card) return;
 
             const requestId = card.getAttribute('data-request-id');
-            const solicitacao = solicitacoes.find((item) => item.id === requestId);
+            const solicitacao = dashboardState.solicitacoes.find((item) => item.id === requestId);
             const oldModal = document.getElementById('solicitacaoDetalheModal');
             if (oldModal) oldModal.remove();
 

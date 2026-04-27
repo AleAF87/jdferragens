@@ -277,7 +277,7 @@ async function submitSignup(event) {
             uid: state.googleUser.uid,
             provider: 'google',
             status: 'pendente',
-            nivel: 3,
+            nivel: 5,
             tipoCadastro: 'usuario-google',
             criadoEm: now,
             atualizadoEm: now
@@ -290,7 +290,7 @@ async function submitSignup(event) {
             uid: state.googleUser.uid,
             provider: 'google',
             status: 'pendente',
-            nivel: 3,
+            nivel: 5,
             criadoEm: now,
             atualizadoEm: now
         };

@@ -37,9 +37,9 @@ function updateNavbarState() {
     const greeting = document.getElementById('userGreeting');
     if (greeting) greeting.textContent = sessionStorage.getItem('userName') || 'Usuario';
 
-    const userLevel = Number(sessionStorage.getItem('currentUserLevel') || 3);
+    const userLevel = Number(sessionStorage.getItem('currentUserLevel') || 5);
     document.querySelectorAll('[data-max-level]').forEach((element) => {
-        const maxLevel = Number(element.getAttribute('data-max-level') || 3);
+        const maxLevel = Number(element.getAttribute('data-max-level') || 5);
         element.classList.toggle('d-none', userLevel > maxLevel);
     });
     document.querySelectorAll('[data-min-level]').forEach((element) => {
@@ -58,16 +58,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         const pageRequirements = {
-            'dashboard.html': 3,
-            'estoque.html': 2,
-            'solicitar.html': 3,
-            'cadastro.html': 2,
-            'solicitacoes.html': 2,
-            'perfil.html': 3
+            'dashboard.html': 5,
+            'estoque.html': 3,
+            'solicitar.html': 5,
+            'cadastro.html': 3,
+            'solicitacoes.html': 3,
+            'solicitacoes-canceladas.html': 3,
+            'perfil.html': 5
         };
         const currentPage = location.pathname.split('/').pop();
 
-        await checkAuth(pageRequirements[currentPage] || 3);
+        await checkAuth(pageRequirements[currentPage] || 5);
         await loadNavbar();
         updateNavbarState();
         setupLogout();

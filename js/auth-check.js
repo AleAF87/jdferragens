@@ -41,7 +41,7 @@ export function checkAuth(requiredLevel = 1) {
                 userData.nome = userData.nome || loginData.nome || user.email?.split('@')[0] || 'Usuario';
                 userData.email = userData.email || loginData.email || user.email || '';
 
-                const userLevel = Number(userData.nivel || 3);
+                const userLevel = Number(userData.nivel || 5);
                 sessionStorage.setItem('currentUserLevel', String(userLevel));
                 sessionStorage.setItem('userCPF', userCPF);
                 sessionStorage.setItem('userName', userData.nome);

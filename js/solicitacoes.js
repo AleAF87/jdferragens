@@ -1,7 +1,8 @@
 import { database } from './firebase-config.js';
-import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 let solicitacoes = [];
+let unsubscribeSolicitacoes = null;
 
 function getById(id) {
     return document.getElementById(id);
@@ -34,6 +35,7 @@ function formatDate(value) {
 function getStatusBadge(status) {
     if (status === 'pronto_retirar') return '<span class="badge text-bg-success">Pronto para retirar</span>';
     if (status === 'separando') return '<span class="badge text-bg-warning">Separando</span>';
+    if (status === 'cancelado') return '<span class="badge text-bg-secondary">Cancelado</span>';
     return '<span class="badge text-bg-primary">Aguardando separacao</span>';
 }
 
@@ -102,8 +104,14 @@ function renderSolicitacoes() {
                     </div>
 
                     <div class="d-flex justify-content-end mt-3">
-                        <button class="btn btn-primary" data-action="ready" data-id="${escapeHtml(solicitacao.id)}" ${solicitacao.status === 'pronto_retirar' ? 'disabled' : ''}>
+                        <button class="btn btn-outline-primary me-2" data-action="separate" data-id="${escapeHtml(solicitacao.id)}" ${solicitacao.status !== 'solicitado' ? 'disabled' : ''}>
+                            <i class="fas fa-box-open me-2"></i>Separacao
+                        </button>
+                        <button class="btn btn-primary me-2" data-action="ready" data-id="${escapeHtml(solicitacao.id)}" ${solicitacao.status !== 'separando' ? 'disabled' : ''}>
                             <i class="fas fa-check me-2"></i>Pronto
+                        </button>
+                        <button class="btn btn-outline-danger" data-action="cancel" data-id="${escapeHtml(solicitacao.id)}" ${!['solicitado', 'separando'].includes(solicitacao.status) ? 'disabled' : ''}>
+                            <i class="fas fa-ban me-2"></i>Cancelar
                         </button>
                     </div>
                 </article>
@@ -119,13 +127,53 @@ async function carregarSolicitacoes() {
         .sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')));
 }
 
-async function marcarPronto(solicitacaoId) {
+async function iniciarSeparacao(solicitacaoId) {
     const solicitacao = solicitacoes.find((item) => item.id === solicitacaoId);
-    if (!solicitacao || solicitacao.status === 'pronto_retirar') return;
+    if (!solicitacao || solicitacao.status !== 'solicitado') return;
 
     const now = new Date().toISOString();
     const operadorCpf = sessionStorage.getItem('userCPF') || '';
-    const operadorNome = sessionStorage.getItem('userName') || 'Operador';
+    const operadorNome = sessionStorage.getItem('userName') || 'Vendedor';
+    const statusData = {
+        status: 'separando',
+        statusLabel: 'Separando',
+        separacaoIniciadaPorCpf: operadorCpf,
+        separacaoIniciadaPorNome: operadorNome,
+        separacaoIniciadaEm: now,
+        atualizadoEm: now
+    };
+
+    await update(ref(database), {
+        [`solicitacoes/${solicitacaoId}`]: {
+            ...solicitacao,
+            ...statusData
+        },
+        [`usuariosSolicitacoes/${solicitacao.solicitanteCpf}/${solicitacaoId}`]: {
+            id: solicitacaoId,
+            status: statusData.status,
+            statusLabel: statusData.statusLabel,
+            total: Number(solicitacao.total || 0),
+            quantidadeItens: Number(solicitacao.quantidadeItens || 0),
+            itens: solicitacao.itens || [],
+            solicitanteCpf: solicitacao.solicitanteCpf,
+            solicitanteNome: solicitacao.solicitanteNome,
+            criadoEm: solicitacao.criadoEm || now,
+            separacaoIniciadaEm: now,
+            atualizadoEm: now
+        }
+    });
+
+    await carregarSolicitacoes();
+    renderSolicitacoes();
+}
+
+async function marcarPronto(solicitacaoId) {
+    const solicitacao = solicitacoes.find((item) => item.id === solicitacaoId);
+    if (!solicitacao || solicitacao.status !== 'separando') return;
+
+    const now = new Date().toISOString();
+    const operadorCpf = sessionStorage.getItem('userCPF') || '';
+    const operadorNome = sessionStorage.getItem('userName') || 'Vendedor';
     const statusData = {
         status: 'pronto_retirar',
         statusLabel: 'Pronto para retirar',
@@ -163,6 +211,8 @@ async function marcarPronto(solicitacaoId) {
             total: Number(solicitacao.total || 0),
             quantidadeItens: Number(solicitacao.quantidadeItens || 0),
             itens: solicitacao.itens || [],
+            solicitanteCpf: solicitacao.solicitanteCpf,
+            solicitanteNome: solicitacao.solicitanteNome,
             criadoEm: solicitacao.criadoEm || now,
             prontoEm: now,
             atualizadoEm: now
@@ -174,30 +224,105 @@ async function marcarPronto(solicitacaoId) {
     renderSolicitacoes();
 }
 
+async function buildStockReturnUpdates(itens = []) {
+    const productsSnapshot = await get(ref(database, 'produtos'));
+    const products = productsSnapshot.val() || {};
+    const updates = {};
+
+    itens.forEach((item) => {
+        const currentStock = Number(products?.[item.produtoId]?.quantidade || 0);
+        updates[`produtos/${item.produtoId}/quantidade`] = currentStock + Number(item.quantidade || 0);
+    });
+
+    return updates;
+}
+
+async function cancelarSolicitacao(solicitacaoId) {
+    const solicitacao = solicitacoes.find((item) => item.id === solicitacaoId);
+    if (!solicitacao || !['solicitado', 'separando'].includes(solicitacao.status)) return false;
+
+    const confirmed = confirm('Deseja cancelar esta solicitacao? Os itens voltarao para o estoque.');
+    if (!confirmed) return false;
+
+    const now = new Date().toISOString();
+    const operadorCpf = sessionStorage.getItem('userCPF') || '';
+    const operadorNome = sessionStorage.getItem('userName') || 'Vendedor';
+    const stockUpdates = await buildStockReturnUpdates(solicitacao.itens || []);
+    const statusData = {
+        status: 'cancelado',
+        statusLabel: 'Cancelado',
+        canceladoPorCpf: operadorCpf,
+        canceladoPorNome: operadorNome,
+        canceladoEm: now,
+        atualizadoEm: now
+    };
+
+    await update(ref(database), {
+        ...stockUpdates,
+        [`solicitacoes/${solicitacaoId}`]: {
+            ...solicitacao,
+            ...statusData
+        },
+        [`usuariosSolicitacoes/${solicitacao.solicitanteCpf}/${solicitacaoId}`]: {
+            id: solicitacaoId,
+            status: statusData.status,
+            statusLabel: statusData.statusLabel,
+            total: Number(solicitacao.total || 0),
+            quantidadeItens: Number(solicitacao.quantidadeItens || 0),
+            itens: solicitacao.itens || [],
+            solicitanteCpf: solicitacao.solicitanteCpf,
+            solicitanteNome: solicitacao.solicitanteNome,
+            criadoEm: solicitacao.criadoEm || now,
+            canceladoEm: now,
+            atualizadoEm: now
+        }
+    });
+
+    await carregarSolicitacoes();
+    renderSolicitacoes();
+    return true;
+}
+
 export async function initPage() {
     const content = getById('solicitacoesContent');
     if (!content) return;
 
     try {
-        await carregarSolicitacoes();
-        renderSolicitacoes();
+        if (unsubscribeSolicitacoes) unsubscribeSolicitacoes();
 
-        content.addEventListener('click', async (event) => {
-            const button = event.target.closest('[data-action="ready"]');
+        unsubscribeSolicitacoes = onValue(ref(database, 'solicitacoes'), (snapshot) => {
+            solicitacoes = Object.values(snapshot.val() || {})
+                .filter((solicitacao) => solicitacao.status !== 'cancelado')
+                .sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')));
+            renderSolicitacoes();
+        });
+
+        content.onclick = async (event) => {
+            const button = event.target.closest('[data-action]');
             if (!button) return;
 
             const originalHtml = button.innerHTML;
+            const action = button.getAttribute('data-action');
             try {
                 button.disabled = true;
                 button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
-                await marcarPronto(button.getAttribute('data-id'));
+                const solicitacaoId = button.getAttribute('data-id');
+                if (action === 'separate') await iniciarSeparacao(solicitacaoId);
+                if (action === 'ready') await marcarPronto(solicitacaoId);
+                if (action === 'cancel') {
+                    const canceled = await cancelarSolicitacao(solicitacaoId);
+                    if (!canceled) {
+                        button.disabled = false;
+                        button.innerHTML = originalHtml;
+                    }
+                }
             } catch (error) {
-                console.error('Erro ao marcar solicitacao pronta:', error);
+                console.error('Erro ao atualizar solicitacao:', error);
                 button.disabled = false;
                 button.innerHTML = originalHtml;
-                alert('Nao foi possivel marcar como pronto: ' + error.message);
+                alert('Nao foi possivel atualizar a solicitacao: ' + error.message);
             }
-        });
+        };
     } catch (error) {
         console.error('Erro ao carregar solicitacoes:', error);
         content.innerHTML = `

@@ -44,16 +44,38 @@
 
 Status previstos:
 
-- `solicitado`: pedido criado pelo usuario nivel 3.
-- `separando`: reservado para evolucao futura.
+- `solicitado`: pedido criado por usuario com acesso ao sistema.
+- `separando`: vendedor/admin iniciou a separacao.
 - `pronto_retirar`: separado pelo usuario nivel 1 ou 2.
-- `cancelado`: reservado para cancelamento futuro.
+- `cancelado`: solicitacao cancelada e itens devolvidos ao estoque.
+
+Ao criar uma solicitacao, cada item e baixado de `produtos/{produtoId}/quantidade`.
+
+Ao cancelar uma solicitacao com status `solicitado` ou `separando`, os itens voltam para `produtos/{produtoId}/quantidade`.
+
+Campos adicionais usados no ciclo de separacao:
+
+```json
+{
+  "separacaoIniciadaPorCpf": "11111111111",
+  "separacaoIniciadaPorNome": "Vendedor",
+  "separacaoIniciadaEm": "2026-04-27T00:00:00.000Z",
+  "separadoPorCpf": "11111111111",
+  "separadoPorNome": "Vendedor",
+  "prontoEm": "2026-04-27T00:00:00.000Z",
+  "canceladoPorCpf": "11111111111",
+  "canceladoPorNome": "Vendedor",
+  "canceladoEm": "2026-04-27T00:00:00.000Z"
+}
+```
 
 ## Indice do Dashboard do Usuario
 
 `usuariosSolicitacoes/{cpf}/{solicitacaoId}`
 
 Guarda o resumo exibido no dashboard do solicitante, incluindo os itens para abrir o modal sem consultas extras.
+
+O solicitante so pode cancelar enquanto `status === "solicitado"`. Depois que entra em `separando`, apenas vendedor/admin cancela pela tela `solicitacoes`.
 
 ## Pedidos Separados Para o PDV
 

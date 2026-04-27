@@ -4,12 +4,13 @@ class AppCore {
     constructor() {
         this.currentPage = null;
         this.pageRequirements = {
-            'dashboard.html': 3,
-            'estoque.html': 2,
-            'solicitar.html': 3,
-            'cadastro.html': 2,
-            'solicitacoes.html': 2,
-            'perfil.html': 3
+            'dashboard.html': 5,
+            'estoque.html': 3,
+            'solicitar.html': 5,
+            'cadastro.html': 3,
+            'solicitacoes.html': 3,
+            'solicitacoes-canceladas.html': 3,
+            'perfil.html': 5
         };
     }
 
@@ -19,7 +20,7 @@ class AppCore {
 
     async init() {
         try {
-            await checkAuth(3);
+            await checkAuth(5);
             await loadNavbar();
             this.setupNavbar();
             this.applyNavbarPermissions();
@@ -64,10 +65,10 @@ class AppCore {
     }
 
     applyNavbarPermissions() {
-        const userLevel = Number(sessionStorage.getItem('currentUserLevel') || 3);
+        const userLevel = Number(sessionStorage.getItem('currentUserLevel') || 5);
 
         document.querySelectorAll('[data-max-level]').forEach((element) => {
-            const maxLevel = Number(element.getAttribute('data-max-level') || 3);
+            const maxLevel = Number(element.getAttribute('data-max-level') || 5);
             element.classList.toggle('d-none', userLevel > maxLevel);
         });
 
@@ -115,6 +116,7 @@ class AppCore {
             'solicitar.html': './solicitar.js',
             'cadastro.html': './cadastro.js',
             'solicitacoes.html': './solicitacoes.js',
+            'solicitacoes-canceladas.html': './solicitacoes-canceladas.js',
             'perfil.html': './perfil.js'
         };
 

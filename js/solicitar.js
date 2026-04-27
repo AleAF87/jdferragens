@@ -1,5 +1,5 @@
 import { database } from './firebase-config.js';
-import { ref, get, push, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { ref, get, push, update, runTransaction } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 const state = {
     produtos: [],
@@ -208,12 +208,41 @@ async function carregarProdutos() {
         .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
 }
 
+async function reserveStockForRequest(itens) {
+    const reservedItems = [];
+
+    for (const item of itens) {
+        const quantityRef = ref(database, `produtos/${item.produtoId}/quantidade`);
+        const result = await runTransaction(quantityRef, (currentValue) => {
+            const currentStock = Number(currentValue || 0);
+            if (currentStock < item.quantidade) return;
+            return currentStock - item.quantidade;
+        });
+
+        if (!result.committed) {
+            throw new Error(`Estoque insuficiente para ${item.nome}.`);
+        }
+
+        reservedItems.push(item);
+    }
+
+    return reservedItems;
+}
+
+async function rollbackReservedStock(itens) {
+    await Promise.all((itens || []).map((item) => {
+        const quantityRef = ref(database, `produtos/${item.produtoId}/quantidade`);
+        return runTransaction(quantityRef, (currentValue) => Number(currentValue || 0) + Number(item.quantidade || 0));
+    }));
+}
+
 async function enviarSolicitacao() {
     const itens = getCarrinhoItens();
     if (!itens.length) return;
 
     const submitBtn = getById('enviarSolicitacaoBtn');
     const originalHtml = submitBtn?.innerHTML;
+    let reservedItems = [];
 
     try {
         if (submitBtn) {
@@ -228,6 +257,7 @@ async function enviarSolicitacao() {
         const quantidadeItens = itens.reduce((sum, item) => sum + item.quantidade, 0);
         const solicitacaoRef = push(ref(database, 'solicitacoes'));
         const solicitacaoId = solicitacaoRef.key;
+        reservedItems = await reserveStockForRequest(itens);
 
         const payload = {
             id: solicitacaoId,
@@ -248,6 +278,8 @@ async function enviarSolicitacao() {
             statusLabel: payload.statusLabel,
             total,
             quantidadeItens,
+            solicitanteCpf,
+            solicitanteNome,
             criadoEm: now,
             atualizadoEm: now,
             itens
@@ -259,10 +291,16 @@ async function enviarSolicitacao() {
         });
 
         state.carrinho.clear();
+        await carregarProdutos();
         renderProdutos();
         renderCarrinho();
         showAlert('Solicitacao enviada. Aguarde a separacao dos itens.', 'success');
     } catch (error) {
+        if (reservedItems.length) {
+            await rollbackReservedStock(reservedItems).catch((rollbackError) => {
+                console.error('Erro ao devolver estoque reservado:', rollbackError);
+            });
+        }
         console.error('Erro ao enviar solicitacao:', error);
         showAlert(`Erro ao enviar solicitacao: ${error.message}`, 'danger');
     } finally {
