@@ -1,6 +1,6 @@
 import { database } from './firebase-config.js';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-import { uploadImagemCloudinary } from './cloudinary-config.js';
+import { uploadImagemCloudinary, deletarImagemCloudinary } from './cloudinary-config.js';
 
 let products = [];
 let selectedProduct = null;
@@ -51,6 +51,26 @@ function normalizeImages(product) {
 
 function getImageKey(image, index) {
     return image?.publicId || image?.url || `image_${index}`;
+}
+
+function extractCloudinaryPublicId(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (!/^https?:\/\//i.test(raw)) return raw;
+
+    try {
+        const url = new URL(raw);
+        const marker = '/upload/';
+        const markerIndex = url.pathname.indexOf(marker);
+        if (markerIndex < 0) return '';
+
+        let publicPath = url.pathname.slice(markerIndex + marker.length);
+        publicPath = publicPath.replace(/^v\d+\//, '');
+        publicPath = publicPath.replace(/\.[a-zA-Z0-9]+$/, '');
+        return decodeURIComponent(publicPath);
+    } catch (error) {
+        return '';
+    }
 }
 
 function revokePendingPreviews() {
@@ -151,10 +171,10 @@ function renderEditModal() {
                             </div>
                             <div class="col-12">
                                 <div class="d-flex flex-column flex-md-row justify-content-between gap-2 align-items-md-center">
-                                    <div>
-                                        <label class="form-label mb-1">Imagens</label>
-                                        <div class="form-text">As imagens novas serao enviadas para a pasta Cloudinary produtos ao salvar.</div>
-                                    </div>
+                                <div>
+                                    <label class="form-label mb-1">Imagens</label>
+                                    <div class="form-text">Imagens novas e remocoes ficam pendentes ate salvar. Uploads e exclusoes usam a pasta Cloudinary produtos.</div>
+                                </div>
                                     <div>
                                         <input id="produtoImagemInput" type="file" class="d-none" multiple accept=".jpg,.jpeg,.png,.webp">
                                         <button id="addProdutoImagemBtn" type="button" class="btn btn-outline-primary">
@@ -321,6 +341,18 @@ async function uploadPendingImages() {
     return uploaded;
 }
 
+async function deleteRemovedImagesFromCloudinary() {
+    const removedImages = normalizeImages(selectedProduct)
+        .map((image, index) => ({ image, key: getImageKey(image, index) }))
+        .filter((item) => removedImageKeys.has(item.key));
+
+    for (const { image, key } of removedImages) {
+        const publicId = image?.publicId || extractCloudinaryPublicId(image?.url || image?.secure_url || image || key);
+        if (!publicId) continue;
+        await deletarImagemCloudinary(publicId);
+    }
+}
+
 async function saveSelectedProduct(button) {
     if (!selectedProduct) return;
 
@@ -355,6 +387,7 @@ async function saveSelectedProduct(button) {
         }
 
         await update(ref(database, `produtos/${selectedProduct.id}`), updates);
+        await deleteRemovedImagesFromCloudinary();
 
         revokePendingPreviews();
         removedImageKeys = new Set();
