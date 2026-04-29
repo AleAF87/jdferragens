@@ -3,6 +3,7 @@ import { ref, get, push, update, runTransaction } from "https://www.gstatic.com/
 
 const state = {
     produtos: [],
+    solicitantes: [],
     filtro: '',
     carrinho: new Map()
 };
@@ -27,9 +28,46 @@ function formatBRL(value) {
     }).format(Number(value || 0));
 }
 
+function onlyDigits(value) {
+    return String(value || '').replace(/\D/g, '');
+}
+
+function formatCPF(cpf) {
+    const digits = onlyDigits(cpf);
+    if (digits.length !== 11) return cpf || '';
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
 function parseStockQuantity(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function renderSolicitanteSelect() {
+    const select = getById('solicitanteSelect');
+    if (!select) return;
+
+    const currentUserCpf = sessionStorage.getItem('userCPF') || '';
+    const selectedCpf = select.value || currentUserCpf;
+
+    if (!state.solicitantes.length) {
+        select.innerHTML = '<option value="">Nenhum usuário cadastrado</option>';
+        return;
+    }
+
+    select.innerHTML = state.solicitantes.map((user) => `
+        <option value="${escapeHtml(user.cpf)}" ${user.cpf === selectedCpf ? 'selected' : ''}>
+            ${escapeHtml(user.nome || 'Usuário')} - ${escapeHtml(formatCPF(user.cpf))}
+        </option>
+    `).join('');
+}
+
+function getSolicitanteSelecionado() {
+    const selectedCpf = getById('solicitanteSelect')?.value || sessionStorage.getItem('userCPF') || '';
+    return state.solicitantes.find((user) => user.cpf === selectedCpf) || {
+        cpf: selectedCpf,
+        nome: sessionStorage.getItem('userName') || 'Usuário'
+    };
 }
 
 function showAlert(message, type = 'info') {
@@ -277,6 +315,34 @@ async function carregarProdutos() {
         .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
 }
 
+async function carregarSolicitantes() {
+    const [usuariosSnapshot, loginSnapshot] = await Promise.all([
+        get(ref(database, 'usuarios')),
+        get(ref(database, 'login'))
+    ]);
+
+    const usuarios = usuariosSnapshot.val() || {};
+    const login = loginSnapshot.val() || {};
+    const cpfs = new Set([...Object.keys(usuarios), ...Object.keys(login)]);
+    const currentUserCpf = sessionStorage.getItem('userCPF') || '';
+
+    state.solicitantes = Array.from(cpfs)
+        .map((cpf) => ({
+            cpf,
+            ...(login?.[cpf] || {}),
+            ...(usuarios?.[cpf] || {})
+        }))
+        .filter((user) => user.cpf)
+        .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' }));
+
+    if (currentUserCpf && !state.solicitantes.some((user) => user.cpf === currentUserCpf)) {
+        state.solicitantes.unshift({
+            cpf: currentUserCpf,
+            nome: sessionStorage.getItem('userName') || 'Usuário'
+        });
+    }
+}
+
 async function getLatestCartItems() {
     await carregarProdutos();
 
@@ -352,8 +418,9 @@ async function enviarSolicitacao() {
         }
 
         const now = new Date().toISOString();
-        const solicitanteCpf = sessionStorage.getItem('userCPF') || '';
-        const solicitanteNome = sessionStorage.getItem('userName') || 'Usuário';
+        const solicitante = getSolicitanteSelecionado();
+        const solicitanteCpf = solicitante.cpf || sessionStorage.getItem('userCPF') || '';
+        const solicitanteNome = solicitante.nome || sessionStorage.getItem('userName') || 'Usuário';
         const total = itens.reduce((sum, item) => sum + item.subtotal, 0);
         const quantidadeItens = itens.reduce((sum, item) => sum + item.quantidade, 0);
         const solicitacaoRef = push(ref(database, 'solicitacoes'));
@@ -424,7 +491,8 @@ export async function initPage() {
     `;
 
     try {
-        await carregarProdutos();
+        await Promise.all([carregarProdutos(), carregarSolicitantes()]);
+        renderSolicitanteSelect();
         renderProdutos();
         renderCarrinho();
 
