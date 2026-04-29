@@ -28,7 +28,7 @@ export function initPage() {
         };
 
         if (!product.codigo || !product.nome) {
-            showAlert('Informe codigo e produto para continuar.', 'danger');
+            showAlert('Informe código e produto para continuar.', 'danger');
             return;
         }
 

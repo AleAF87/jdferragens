@@ -37,10 +37,10 @@ function renderItens(itens = []) {
             <table class="table table-sm align-middle mb-0">
                 <thead>
                     <tr>
-                        <th>Codigo</th>
+                        <th>Código</th>
                         <th>Produto</th>
                         <th>Qtd.</th>
-                        <th>Unitario</th>
+                        <th>Unitário</th>
                         <th>Subtotal</th>
                     </tr>
                 </thead>
@@ -68,8 +68,8 @@ function renderCanceladas(canceladas) {
         content.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-ban"></i>
-                <h2>Nenhuma solicitacao cancelada</h2>
-                <p>Quando houver cancelamentos, eles aparecerao aqui em ordem cronologica.</p>
+                <h2>Nenhuma solicitação cancelada</h2>
+                <p>Quando houver cancelamentos, eles aparecerão aqui em ordem cronológica.</p>
             </div>
         `;
         return;
@@ -82,7 +82,7 @@ function renderCanceladas(canceladas) {
                     <div class="request-card-header">
                         <div>
                             <span class="section-label">Criada em ${escapeHtml(formatDate(solicitacao.criadoEm))}</span>
-                            <h2>${escapeHtml(solicitacao.solicitanteNome || 'Usuario')}</h2>
+                            <h2>${escapeHtml(solicitacao.solicitanteNome || 'Usuário')}</h2>
                             <p class="mb-0 text-muted">CPF: ${escapeHtml(solicitacao.solicitanteCpf || '-')}</p>
                         </div>
                         <div class="text-end">
@@ -114,7 +114,7 @@ export function initPage() {
             .sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')));
         renderCanceladas(canceladas);
     }, (error) => {
-        console.error('Erro ao carregar solicitacoes canceladas:', error);
+        console.error('Erro ao carregar solicitações canceladas:', error);
         content.innerHTML = `
             <div class="alert alert-danger mb-0">
                 <h4 class="alert-heading">Erro ao carregar canceladas</h4>

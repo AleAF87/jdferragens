@@ -391,6 +391,7 @@ main.container-fluid,
 
 .order-cart-item {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.85rem;
@@ -404,6 +405,34 @@ main.container-fluid,
     margin-top: 0.2rem;
     color: var(--text-muted);
     font-size: 0.88rem;
+}
+
+.order-cart-controls {
+    display: inline-grid;
+    grid-template-columns: 28px 52px 28px;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+}
+
+.order-cart-step {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    display: inline-grid !important;
+    place-items: center;
+    padding: 0 !important;
+    font-size: 0.75rem !important;
+    line-height: 1 !important;
+}
+
+.order-cart-qty-input {
+    width: 52px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0.15rem 0.25rem !important;
+    text-align: center;
+    font-size: 0.85rem !important;
 }
 
 .order-total-row {
@@ -623,6 +652,7 @@ main.container-fluid,
     .request-card-header,
     .order-cart-item {
         flex-direction: column;
+        align-items: stretch;
     }
 
     .user-data-panel,

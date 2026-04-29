@@ -35,7 +35,7 @@ function setupDirectNavigation() {
 
 function updateNavbarState() {
     const greeting = document.getElementById('userGreeting');
-    if (greeting) greeting.textContent = sessionStorage.getItem('userName') || 'Usuario';
+    if (greeting) greeting.textContent = sessionStorage.getItem('userName') || 'Usuário';
 
     const userLevel = Number(sessionStorage.getItem('currentUserLevel') || 5);
     document.querySelectorAll('[data-max-level]').forEach((element) => {
@@ -74,6 +74,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupLogout();
         setupDirectNavigation();
     } catch (error) {
-        console.error('Erro na pagina protegida:', error);
+        console.error('Erro na página protegida:', error);
     }
 });

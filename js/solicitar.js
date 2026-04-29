@@ -27,6 +27,11 @@ function formatBRL(value) {
     }).format(Number(value || 0));
 }
 
+function parseStockQuantity(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function showAlert(message, type = 'info') {
     const alert = getById('solicitarAlert');
     if (!alert) return;
@@ -49,6 +54,7 @@ function getCarrinhoItens() {
                 codigo: produto?.codigo || produtoId,
                 nome: produto?.nome || 'Produto',
                 quantidade,
+                estoque: parseStockQuantity(produto?.quantidade),
                 precoUnitario,
                 subtotal: quantidade * precoUnitario
             };
@@ -82,7 +88,6 @@ function renderProdutos() {
             <table class="table align-middle">
                 <thead>
                     <tr>
-                        <th>Codigo</th>
                         <th>Produto</th>
                         <th>Estoque</th>
                         <th>Valor</th>
@@ -95,7 +100,6 @@ function renderProdutos() {
                         const quantidade = state.carrinho.get(produto.id) || 0;
                         return `
                             <tr>
-                                <td>${escapeHtml(produto.codigo || produto.id)}</td>
                                 <td>${escapeHtml(produto.nome || '-')}</td>
                                 <td>${estoque}</td>
                                 <td>${escapeHtml(formatBRL(produto.preco || 0))}</td>
@@ -152,7 +156,30 @@ function renderCarrinho() {
                 <div class="order-cart-item">
                     <div>
                         <strong>${escapeHtml(item.nome)}</strong>
-                        <span>${escapeHtml(item.codigo)} | ${item.quantidade} x ${escapeHtml(formatBRL(item.precoUnitario))}</span>
+                        <span>${escapeHtml(formatBRL(item.precoUnitario))} cada</span>
+                    </div>
+                    <div class="order-cart-controls" aria-label="Quantidade de ${escapeHtml(item.nome)}">
+                        <button class="btn btn-outline-secondary order-cart-step"
+                                type="button"
+                                data-cart-decrease-id="${escapeHtml(item.produtoId)}"
+                                title="Diminuir quantidade">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input class="form-control order-cart-qty-input"
+                               type="number"
+                               min="1"
+                               max="${item.estoque}"
+                               step="1"
+                               value="${item.quantidade}"
+                               data-cart-qty-id="${escapeHtml(item.produtoId)}"
+                               aria-label="Quantidade">
+                        <button class="btn btn-outline-secondary order-cart-step"
+                                type="button"
+                                data-cart-increase-id="${escapeHtml(item.produtoId)}"
+                                title="Aumentar quantidade"
+                                ${item.quantidade >= item.estoque ? 'disabled' : ''}>
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
                     <strong>${escapeHtml(formatBRL(item.subtotal))}</strong>
                 </div>
@@ -173,6 +200,7 @@ function handleAddToCart(event) {
     const produto = getProdutoById(produtoId);
     const estoque = Number(produto?.quantidade || 0);
     const input = document.querySelector(`[data-qty-produto-id="${CSS.escape(produtoId)}"]`);
+    const quantidadeAtual = Number(state.carrinho.get(produtoId) || 0);
     let quantidade = Math.floor(Number(input.value || 0));
 
     if (quantidade <= 0) {
@@ -181,17 +209,58 @@ function handleAddToCart(event) {
         return;
     }
 
-    if (quantidade > estoque) {
-        quantidade = estoque;
-        showAlert('Quantidade ajustada ao estoque disponivel.', 'warning');
+    if (quantidadeAtual + quantidade > estoque) {
+        quantidade = Math.max(0, estoque - quantidadeAtual);
+        showAlert('Quantidade ajustada ao estoque disponível.', 'warning');
     }
 
-    input.value = quantidade;
-    if (quantidade > 0) state.carrinho.set(produtoId, quantidade);
-    else state.carrinho.delete(produtoId);
+    if (quantidade <= 0) {
+        showAlert('Este item já atingiu a quantidade disponível em estoque.', 'warning');
+        input.value = 1;
+        return;
+    }
+
+    state.carrinho.set(produtoId, quantidadeAtual + quantidade);
+    input.value = 1;
 
     renderProdutos();
     renderCarrinho();
+}
+
+function updateCartQuantity(produtoId, quantidade) {
+    const produto = getProdutoById(produtoId);
+    const estoque = parseStockQuantity(produto?.quantidade);
+    let normalizedQuantity = Math.floor(Number(quantidade || 0));
+
+    if (normalizedQuantity <= 0) {
+        state.carrinho.delete(produtoId);
+    } else {
+        if (normalizedQuantity > estoque) {
+            normalizedQuantity = estoque;
+            showAlert('Quantidade ajustada ao estoque disponível.', 'warning');
+        }
+        state.carrinho.set(produtoId, normalizedQuantity);
+    }
+
+    renderProdutos();
+    renderCarrinho();
+}
+
+function handleCartControls(event) {
+    const decreaseButton = event.target.closest('[data-cart-decrease-id]');
+    const increaseButton = event.target.closest('[data-cart-increase-id]');
+
+    if (decreaseButton || increaseButton) {
+        const produtoId = (decreaseButton || increaseButton).getAttribute(decreaseButton ? 'data-cart-decrease-id' : 'data-cart-increase-id');
+        const currentQuantity = Number(state.carrinho.get(produtoId) || 0);
+        updateCartQuantity(produtoId, currentQuantity + (increaseButton ? 1 : -1));
+    }
+}
+
+function handleCartQuantityChange(event) {
+    const input = event.target.closest('[data-cart-qty-id]');
+    if (!input) return;
+    updateCartQuantity(input.getAttribute('data-cart-qty-id'), input.value);
 }
 
 async function carregarProdutos() {
@@ -208,19 +277,46 @@ async function carregarProdutos() {
         .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
 }
 
+async function getLatestCartItems() {
+    await carregarProdutos();
+
+    return getCarrinhoItens().map((item) => {
+        const produto = getProdutoById(item.produtoId);
+        return {
+            ...item,
+            estoqueAtual: parseStockQuantity(produto?.quantidade)
+        };
+    });
+}
+
 async function reserveStockForRequest(itens) {
     const reservedItems = [];
 
     for (const item of itens) {
         const quantityRef = ref(database, `produtos/${item.produtoId}/quantidade`);
+        const quantitySnapshot = await get(quantityRef);
+        const latestStock = parseStockQuantity(quantitySnapshot.val());
+
+        if (!quantitySnapshot.exists()) {
+            throw new Error(`Produto não encontrado no estoque: ${item.nome}.`);
+        }
+
+        if (latestStock < item.quantidade) {
+            throw new Error(`Estoque insuficiente para ${item.nome}. Disponível: ${latestStock}. Solicitado: ${item.quantidade}.`);
+        }
+
         const result = await runTransaction(quantityRef, (currentValue) => {
-            const currentStock = Number(currentValue || 0);
+            const currentStock = currentValue === null || currentValue === undefined
+                ? latestStock
+                : parseStockQuantity(currentValue);
             if (currentStock < item.quantidade) return;
             return currentStock - item.quantidade;
-        });
+        }, { applyLocally: false });
 
         if (!result.committed) {
-            throw new Error(`Estoque insuficiente para ${item.nome}.`);
+            const updatedSnapshot = await get(quantityRef);
+            const updatedStock = parseStockQuantity(updatedSnapshot.val());
+            throw new Error(`Estoque insuficiente para ${item.nome}. Disponível: ${updatedStock}. Solicitado: ${item.quantidade}.`);
         }
 
         reservedItems.push(item);
@@ -232,14 +328,11 @@ async function reserveStockForRequest(itens) {
 async function rollbackReservedStock(itens) {
     await Promise.all((itens || []).map((item) => {
         const quantityRef = ref(database, `produtos/${item.produtoId}/quantidade`);
-        return runTransaction(quantityRef, (currentValue) => Number(currentValue || 0) + Number(item.quantidade || 0));
+        return runTransaction(quantityRef, (currentValue) => parseStockQuantity(currentValue) + Number(item.quantidade || 0), { applyLocally: false });
     }));
 }
 
 async function enviarSolicitacao() {
-    const itens = getCarrinhoItens();
-    if (!itens.length) return;
-
     const submitBtn = getById('enviarSolicitacaoBtn');
     const originalHtml = submitBtn?.innerHTML;
     let reservedItems = [];
@@ -250,9 +343,17 @@ async function enviarSolicitacao() {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
         }
 
+        const itens = await getLatestCartItems();
+        if (!itens.length) return;
+
+        const insufficientItem = itens.find((item) => item.estoqueAtual < item.quantidade);
+        if (insufficientItem) {
+            throw new Error(`Estoque insuficiente para ${insufficientItem.nome}. Disponível: ${insufficientItem.estoqueAtual}. Solicitado: ${insufficientItem.quantidade}.`);
+        }
+
         const now = new Date().toISOString();
         const solicitanteCpf = sessionStorage.getItem('userCPF') || '';
-        const solicitanteNome = sessionStorage.getItem('userName') || 'Usuario';
+        const solicitanteNome = sessionStorage.getItem('userName') || 'Usuário';
         const total = itens.reduce((sum, item) => sum + item.subtotal, 0);
         const quantidadeItens = itens.reduce((sum, item) => sum + item.quantidade, 0);
         const solicitacaoRef = push(ref(database, 'solicitacoes'));
@@ -264,7 +365,7 @@ async function enviarSolicitacao() {
             solicitanteCpf,
             solicitanteNome,
             status: 'solicitado',
-            statusLabel: 'Aguardando separacao',
+            statusLabel: 'Aguardando separação',
             itens,
             total,
             quantidadeItens,
@@ -294,15 +395,15 @@ async function enviarSolicitacao() {
         await carregarProdutos();
         renderProdutos();
         renderCarrinho();
-        showAlert('Solicitacao enviada. Aguarde a separacao dos itens.', 'success');
+        showAlert('Solicitação enviada. Aguarde a separação dos itens.', 'success');
     } catch (error) {
         if (reservedItems.length) {
             await rollbackReservedStock(reservedItems).catch((rollbackError) => {
                 console.error('Erro ao devolver estoque reservado:', rollbackError);
             });
         }
-        console.error('Erro ao enviar solicitacao:', error);
-        showAlert(`Erro ao enviar solicitacao: ${error.message}`, 'danger');
+        console.error('Erro ao enviar solicitação:', error);
+        showAlert(`Erro ao enviar solicitação: ${error.message}`, 'danger');
     } finally {
         if (submitBtn) {
             submitBtn.disabled = getCarrinhoItens().length === 0;
@@ -333,6 +434,8 @@ export async function initPage() {
         });
 
         produtosContainer.addEventListener('click', handleAddToCart);
+        getById('solicitarCarrinho')?.addEventListener('click', handleCartControls);
+        getById('solicitarCarrinho')?.addEventListener('change', handleCartQuantityChange);
         getById('enviarSolicitacaoBtn')?.addEventListener('click', enviarSolicitacao);
     } catch (error) {
         console.error('Erro ao carregar solicitar:', error);

@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!matchedEntry) {
                 await signOut(auth).catch(() => {});
-                showAlert(infoAlert, 'Cadastro nao encontrado. Faca seu cadastro com Google e aguarde aprovacao.');
+                showAlert(infoAlert, 'Cadastro não encontrado. Faça seu cadastro com Google e aguarde aprovação.');
                 return;
             }
 
@@ -44,16 +44,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (status !== 'ativo') {
                 await signOut(auth).catch(() => {});
                 const statusMessage = status === 'pendente'
-                    ? 'Seu cadastro esta aguardando aprovacao do administrador.'
+                    ? 'Seu cadastro está aguardando aprovação do administrador.'
                     : `Cadastro com status "${status}". Entre em contato com o administrador.`;
                 showAlert(infoAlert, statusMessage);
                 return;
             }
 
             sessionStorage.setItem('userCPF', cpf);
-            sessionStorage.setItem('userName', loginData.nome || googleUser.displayName || 'Usuario');
+            sessionStorage.setItem('userName', loginData.nome || googleUser.displayName || 'Usuário');
             localStorage.setItem('userCPF', cpf);
-            localStorage.setItem('userName', loginData.nome || googleUser.displayName || 'Usuario');
+            localStorage.setItem('userName', loginData.nome || googleUser.displayName || 'Usuário');
             window.location.href = 'app.html';
         } catch (error) {
             console.error('Erro ao entrar com Google:', error);

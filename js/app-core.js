@@ -47,7 +47,7 @@ class AppCore {
         });
 
         const userGreeting = document.getElementById('userGreeting');
-        if (userGreeting) userGreeting.textContent = sessionStorage.getItem('userName') || 'Usuario';
+        if (userGreeting) userGreeting.textContent = sessionStorage.getItem('userName') || 'Usuário';
 
         const logoutBtn = document.getElementById('navLogout');
         if (logoutBtn) {
@@ -136,12 +136,21 @@ class AppCore {
 
     getLoadingHTML(pageUrl) {
         const pageName = pageUrl.replace('.html', '');
+        const pageLabels = {
+            dashboard: 'dashboard',
+            estoque: 'estoque',
+            solicitar: 'solicitação',
+            cadastro: 'cadastro',
+            solicitacoes: 'solicitações',
+            'solicitacoes-canceladas': 'solicitações canceladas',
+            perfil: 'perfil'
+        };
         return `
             <div class="container-fluid">
                 <div class="card mt-4">
                     <div class="card-body text-center py-5">
                         <div class="spinner-border text-primary mb-3"></div>
-                        <h4>Carregando ${pageName}...</h4>
+                        <h4>Carregando ${pageLabels[pageName] || pageName}...</h4>
                     </div>
                 </div>
             </div>
@@ -152,8 +161,8 @@ class AppCore {
         return `
             <div class="container-fluid">
                 <div class="alert alert-danger mt-4">
-                    <h4>Erro ao carregar pagina</h4>
-                    <p>Nao foi possivel carregar <strong>${pageUrl}</strong>.</p>
+                        <h4>Erro ao carregar página</h4>
+                    <p>Não foi possível carregar <strong>${pageUrl}</strong>.</p>
                     <small>${error.message}</small>
                 </div>
             </div>
@@ -165,7 +174,7 @@ class AppCore {
         if (!contentDiv) return;
         contentDiv.innerHTML = `
             <div class="alert alert-danger m-4">
-                <h4>Erro de autenticacao</h4>
+                <h4>Erro de autenticação</h4>
                 <p>${error.message}</p>
                 <a href="index.html" class="btn btn-primary">Voltar ao login</a>
             </div>

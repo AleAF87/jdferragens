@@ -118,7 +118,7 @@ function renderPerfilShell(content) {
         ${state.actorLevel === 1 ? `
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="mb-0">Selecionar usuario</h5>
+                    <h5 class="mb-0">Selecionar usuário</h5>
                 </div>
                 <div class="card-body">
                     <label for="perfilSearchInput" class="form-label">Buscar por CPF, nome ou e-mail</label>
@@ -165,7 +165,7 @@ function renderPerfilShell(content) {
             </div>
 
             <div class="col-12 col-lg-3">
-                <label class="form-label" for="perfilNivel">Nivel</label>
+                <label class="form-label" for="perfilNivel">Nível</label>
                 <select id="perfilNivel" class="form-select">
                     <option value="1">1 - Administrador</option>
                     <option value="2">2 - Moderador</option>
@@ -189,11 +189,11 @@ function renderPerfilShell(content) {
                 <input id="perfilCep" class="form-control" inputmode="numeric">
             </div>
             <div class="col-12 col-lg-7">
-                <label class="form-label" for="perfilEndereco">Endereco</label>
+                <label class="form-label" for="perfilEndereco">Endereço</label>
                 <input id="perfilEndereco" class="form-control">
             </div>
             <div class="col-12 col-lg-2">
-                <label class="form-label" for="perfilNumero">Numero</label>
+                <label class="form-label" for="perfilNumero">Número</label>
                 <input id="perfilNumero" class="form-control">
             </div>
             <div class="col-12 col-lg-4">
@@ -221,7 +221,7 @@ function renderPerfilShell(content) {
                     <i class="fas fa-check me-2"></i>Aprovar
                 </button>
                 <button id="perfilSalvarBtn" type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-2"></i>Salvar alteracoes
+                    <i class="fas fa-save me-2"></i>Salvar alterações
                 </button>
             </div>
         </form>
@@ -270,7 +270,7 @@ function fillForm(userData) {
     state.targetCpf = userData.cpf;
     sessionStorage.setItem('selectedProfileCpf', userData.cpf);
 
-    getById('perfilSelectedName').textContent = userData.nome || 'Usuario';
+    getById('perfilSelectedName').textContent = userData.nome || 'Usuário';
     getById('perfilStatusBadge').textContent = String(userData.status || 'ativo').toUpperCase();
     getById('perfilCpf').value = formatCPF(userData.cpf || '');
     getById('perfilNome').value = userData.nome || '';
@@ -376,7 +376,7 @@ function renderSearchSuggestions(query) {
 
     box.innerHTML = matches.map((user) => `
         <button type="button" class="profile-search-option" data-profile-cpf="${escapeHtml(user.cpf)}">
-            <strong>${escapeHtml(user.nome || 'Usuario')}</strong>
+            <strong>${escapeHtml(user.nome || 'Usuário')}</strong>
             <span>${escapeHtml(formatCPF(user.cpf))} | ${escapeHtml(user.email || '-')} | ${escapeHtml(getLevelLabel(user.nivel))}</span>
         </button>
     `).join('');
@@ -399,17 +399,17 @@ function bindEvents() {
             showAlert('Perfil salvo com sucesso.', 'success');
         } catch (error) {
             console.error('Erro ao salvar perfil:', error);
-            showAlert('Nao foi possivel salvar: ' + error.message, 'danger');
+            showAlert('Não foi possível salvar: ' + error.message, 'danger');
         }
     });
 
     getById('perfilAprovarBtn')?.addEventListener('click', async () => {
         try {
             await saveProfile('ativo');
-            showAlert('Usuario aprovado com sucesso.', 'success');
+            showAlert('Usuário aprovado com sucesso.', 'success');
         } catch (error) {
             console.error('Erro ao aprovar:', error);
-            showAlert('Nao foi possivel aprovar: ' + error.message, 'danger');
+            showAlert('Não foi possível aprovar: ' + error.message, 'danger');
         }
     });
 
@@ -417,10 +417,10 @@ function bindEvents() {
         if (!confirm('Deseja reprovar este cadastro?')) return;
         try {
             await saveProfile('reprovado');
-            showAlert('Usuario reprovado.', 'success');
+            showAlert('Usuário reprovado.', 'success');
         } catch (error) {
             console.error('Erro ao reprovar:', error);
-            showAlert('Nao foi possivel reprovar: ' + error.message, 'danger');
+            showAlert('Não foi possível reprovar: ' + error.message, 'danger');
         }
     });
 

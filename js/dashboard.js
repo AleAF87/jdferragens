@@ -49,7 +49,9 @@ function getStatusClass(status) {
 
 function getStatusLabel(solicitacao) {
     if (solicitacao?.status === 'pronto_retirar') return 'Pronto para retirar';
-    return solicitacao?.statusLabel || 'Aguardando separacao';
+    if (solicitacao?.status === 'separando') return 'Separando';
+    if (solicitacao?.status === 'cancelado') return 'Cancelado';
+    return 'Aguardando separação';
 }
 
 function renderSolicitacaoModal(solicitacao) {
@@ -59,14 +61,14 @@ function renderSolicitacaoModal(solicitacao) {
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Detalhes da solicitacao</h5>
+                        <h5 class="modal-title">Detalhes da solicitação</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                     </div>
                     <div class="modal-body">
                         <div class="d-flex justify-content-between gap-3 flex-wrap mb-3">
                             <div>
                                 <span class="section-label">Solicitante</span>
-                                <h3 class="h5 mb-2">${escapeHtml(solicitacao?.solicitanteNome || sessionStorage.getItem('userName') || 'Usuario')}</h3>
+                                <h3 class="h5 mb-2">${escapeHtml(solicitacao?.solicitanteNome || sessionStorage.getItem('userName') || 'Usuário')}</h3>
                                 <span class="section-label">Status</span>
                                 <h3 class="h5 mb-0">${escapeHtml(getStatusLabel(solicitacao))}</h3>
                             </div>
@@ -79,10 +81,10 @@ function renderSolicitacaoModal(solicitacao) {
                             <table class="table align-middle">
                                 <thead>
                                     <tr>
-                                        <th>Codigo</th>
+                                        <th>Código</th>
                                         <th>Produto</th>
                                         <th>Qtd.</th>
-                                        <th>Unitario</th>
+                                        <th>Unitário</th>
                                         <th>Subtotal</th>
                                     </tr>
                                 </thead>
@@ -114,8 +116,8 @@ function renderSolicitacoesCards(solicitacoes = []) {
         return `
             <div class="empty-state compact-empty-state">
                 <i class="fas fa-cart-shopping"></i>
-                <h2>Nenhuma solicitacao enviada</h2>
-                <p>Quando voce solicitar itens do estoque, os cards aparecerao aqui.</p>
+                <h2>Nenhuma solicitação enviada</h2>
+                <p>Quando você solicitar itens do estoque, os cards aparecerão aqui.</p>
             </div>
         `;
     }
@@ -144,8 +146,8 @@ function renderPendingUsers(pendingUsers = []) {
         return `
             <div class="empty-state compact-empty-state">
                 <i class="fas fa-user-check"></i>
-                <h2>Nenhum usuario pendente</h2>
-                <p>Novas solicitacoes de acesso aparecerao aqui.</p>
+                <h2>Nenhum usuário pendente</h2>
+                <p>Novas solicitações de acesso aparecerão aqui.</p>
             </div>
         `;
     }
@@ -157,7 +159,7 @@ function renderPendingUsers(pendingUsers = []) {
                         type="button"
                         data-pending-user-cpf="${escapeHtml(user.cpf)}">
                     <span>${escapeHtml(formatDate(user.criadoEm || user.atualizadoEm))}</span>
-                    <strong>${escapeHtml(user.nome || 'Usuario sem nome')}</strong>
+                    <strong>${escapeHtml(user.nome || 'Usuário sem nome')}</strong>
                     <small>${escapeHtml(user.email || '-')} | CPF ${escapeHtml(user.cpf)}</small>
                 </button>
             `).join('')}
@@ -230,11 +232,11 @@ async function buildStockReturnUpdates(itens = []) {
 
 async function cancelarSolicitacao(solicitacao) {
     if (!solicitacao || solicitacao.status !== 'solicitado') {
-        alert('Esta solicitacao ja esta em separacao e nao pode ser cancelada pelo solicitante.');
+        alert('Esta solicitação já está em separação e não pode ser cancelada pelo solicitante.');
         return false;
     }
 
-    const confirmed = confirm('Deseja cancelar esta solicitacao? Os itens voltarao para o estoque.');
+    const confirmed = confirm('Deseja cancelar esta solicitação? Os itens voltarão para o estoque.');
     if (!confirmed) return false;
 
     const now = new Date().toISOString();
@@ -243,7 +245,7 @@ async function cancelarSolicitacao(solicitacao) {
         status: 'cancelado',
         statusLabel: 'Cancelado',
         canceladoPorCpf: sessionStorage.getItem('userCPF') || '',
-        canceladoPorNome: sessionStorage.getItem('userName') || 'Usuario',
+        canceladoPorNome: sessionStorage.getItem('userName') || 'Usuário',
         canceladoEm: now,
         atualizadoEm: now
     };
@@ -268,7 +270,7 @@ export async function initPage() {
     if (!dashboardContent) return;
 
     const userCPF = sessionStorage.getItem('userCPF') || '';
-    const storedName = sessionStorage.getItem('userName') || 'Usuario';
+    const storedName = sessionStorage.getItem('userName') || 'Usuário';
     let userData = {
         nome: storedName,
         cpf: userCPF,
@@ -300,21 +302,21 @@ export async function initPage() {
                     <strong>${escapeHtml(userData.nome || storedName)}</strong>
                 </div>
                 <div class="dashboard-user-column">
-                    <span>Nivel de acesso</span>
+                    <span>Nível de acesso</span>
                     <strong>${escapeHtml(getLevelLabel(userData.nivel))}</strong>
                 </div>
             </div>
             <div class="mt-4">
                 <div class="page-header">
                     <div>
-                        <span class="section-label">Minhas solicitacoes</span>
+                        <span class="section-label">Minhas solicitações</span>
                         <h1>Pedidos de itens</h1>
                     </div>
                 </div>
                 <div id="dashboardSolicitacoesList">
                     <div class="text-center py-4">
                         <div class="spinner-border text-primary"></div>
-                        <p class="mt-2">Carregando solicitacoes...</p>
+                        <p class="mt-2">Carregando solicitações...</p>
                     </div>
                 </div>
             </div>
@@ -322,14 +324,14 @@ export async function initPage() {
                 <div class="mt-4">
                     <div class="page-header">
                         <div>
-                            <span class="section-label">Aprovacoes</span>
-                            <h1>Usuarios pendentes</h1>
+                            <span class="section-label">Aprovações</span>
+                            <h1>Usuários pendentes</h1>
                         </div>
                     </div>
                     <div id="dashboardPendingUsersList">
                         <div class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
-                            <p class="mt-2">Carregando usuarios pendentes...</p>
+                            <p class="mt-2">Carregando usuários pendentes...</p>
                         </div>
                     </div>
                 </div>
@@ -366,8 +368,8 @@ export async function initPage() {
                         cancelButton.innerHTML = '<i class="fas fa-ban me-1"></i>Cancelar';
                     }
                 } catch (error) {
-                    console.error('Erro ao cancelar solicitacao:', error);
-                    alert('Nao foi possivel cancelar: ' + error.message);
+                    console.error('Erro ao cancelar solicitação:', error);
+                    alert('Não foi possível cancelar: ' + error.message);
                     cancelButton.disabled = false;
                     cancelButton.innerHTML = '<i class="fas fa-ban me-1"></i>Cancelar';
                 }
@@ -392,7 +394,7 @@ export async function initPage() {
         console.error('Erro ao carregar dados do dashboard:', error);
         dashboardContent.innerHTML = `
             <div class="alert alert-danger mb-0">
-                <h4 class="alert-heading">Erro ao carregar dados do usuario</h4>
+                <h4 class="alert-heading">Erro ao carregar dados do usuário</h4>
                 <p class="mb-0">${escapeHtml(error.message || 'Erro desconhecido.')}</p>
             </div>
         `;

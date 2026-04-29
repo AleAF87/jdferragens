@@ -25,7 +25,7 @@ export function checkAuth(requiredLevel = 1) {
 
             try {
                 const userCPF = formatCPF(sessionStorage.getItem('userCPF') || localStorage.getItem('userCPF'));
-                if (!userCPF) throw new Error('CPF nao encontrado.');
+                if (!userCPF) throw new Error('CPF não encontrado.');
 
                 const [usuarioSnapshot, loginSnapshot] = await Promise.all([
                     get(ref(database, `usuarios/${userCPF}`)),
@@ -38,7 +38,7 @@ export function checkAuth(requiredLevel = 1) {
 
                 if (status !== 'ativo') throw new Error(`Cadastro com status ${status}.`);
 
-                userData.nome = userData.nome || loginData.nome || user.email?.split('@')[0] || 'Usuario';
+                userData.nome = userData.nome || loginData.nome || user.email?.split('@')[0] || 'Usuário';
                 userData.email = userData.email || loginData.email || user.email || '';
 
                 const userLevel = Number(userData.nivel || 5);
@@ -47,14 +47,14 @@ export function checkAuth(requiredLevel = 1) {
                 sessionStorage.setItem('userName', userData.nome);
 
                 if (userLevel > requiredLevel) {
-                    throw new Error(`Nivel insuficiente: ${userLevel} > ${requiredLevel}.`);
+                    throw new Error(`Nível insuficiente: ${userLevel} > ${requiredLevel}.`);
                 }
 
                 resolve({ user, userData, cpf: userCPF });
             } catch (error) {
-                console.error('Erro ao verificar autenticacao:', error);
-                if (!String(error.message || '').includes('Nivel insuficiente')) {
-                    alert('Erro ao verificar permissoes: ' + error.message);
+                console.error('Erro ao verificar autenticação:', error);
+                if (!String(error.message || '').includes('Nível insuficiente')) {
+                    alert('Erro ao verificar permissões: ' + error.message);
                     clearUserData();
                     window.location.href = 'index.html';
                 }

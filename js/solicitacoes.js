@@ -36,7 +36,21 @@ function getStatusBadge(status) {
     if (status === 'pronto_retirar') return '<span class="badge text-bg-success">Pronto para retirar</span>';
     if (status === 'separando') return '<span class="badge text-bg-warning">Separando</span>';
     if (status === 'cancelado') return '<span class="badge text-bg-secondary">Cancelado</span>';
-    return '<span class="badge text-bg-primary">Aguardando separacao</span>';
+    return '<span class="badge text-bg-primary">Aguardando separação</span>';
+}
+
+function getSeparationButton(solicitacao) {
+    const canToggle = ['solicitado', 'separando'].includes(solicitacao.status);
+    const isSeparating = solicitacao.status === 'separando';
+    const icon = isSeparating ? 'fa-pause' : 'fa-box-open';
+    const label = isSeparating ? 'Pausar separação' : 'Iniciar separação';
+    const style = isSeparating ? 'btn-outline-warning' : 'btn-outline-primary';
+
+    return `
+        <button class="btn ${style} me-2" data-action="toggle-separation" data-id="${escapeHtml(solicitacao.id)}" ${!canToggle ? 'disabled' : ''}>
+            <i class="fas ${icon} me-2"></i>${label}
+        </button>
+    `;
 }
 
 function renderItensTable(itens = []) {
@@ -45,10 +59,10 @@ function renderItensTable(itens = []) {
             <table class="table table-sm align-middle mb-0">
                 <thead>
                     <tr>
-                        <th>Codigo</th>
+                        <th>Código</th>
                         <th>Produto</th>
                         <th>Qtd.</th>
-                        <th>Unitario</th>
+                        <th>Unitário</th>
                         <th>Subtotal</th>
                     </tr>
                 </thead>
@@ -76,8 +90,8 @@ function renderSolicitacoes() {
         content.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-clipboard-check"></i>
-                <h2>Nenhuma solicitacao pendente</h2>
-                <p>Os pedidos enviados pelos usuarios aparecerao aqui.</p>
+                <h2>Nenhuma solicitação pendente</h2>
+                <p>Os pedidos enviados pelos usuários aparecerão aqui.</p>
             </div>
         `;
         return;
@@ -90,7 +104,7 @@ function renderSolicitacoes() {
                     <div class="request-card-header">
                         <div>
                             <span class="section-label">${escapeHtml(formatDate(solicitacao.criadoEm))}</span>
-                            <h2>${escapeHtml(solicitacao.solicitanteNome || 'Usuario')}</h2>
+                            <h2>${escapeHtml(solicitacao.solicitanteNome || 'Usuário')}</h2>
                             <p class="mb-0 text-muted">CPF: ${escapeHtml(solicitacao.solicitanteCpf || '-')}</p>
                         </div>
                         ${getStatusBadge(solicitacao.status)}
@@ -104,9 +118,7 @@ function renderSolicitacoes() {
                     </div>
 
                     <div class="d-flex justify-content-end mt-3">
-                        <button class="btn btn-outline-primary me-2" data-action="separate" data-id="${escapeHtml(solicitacao.id)}" ${solicitacao.status !== 'solicitado' ? 'disabled' : ''}>
-                            <i class="fas fa-box-open me-2"></i>Separacao
-                        </button>
+                        ${getSeparationButton(solicitacao)}
                         <button class="btn btn-primary me-2" data-action="ready" data-id="${escapeHtml(solicitacao.id)}" ${solicitacao.status !== 'separando' ? 'disabled' : ''}>
                             <i class="fas fa-check me-2"></i>Pronto
                         </button>
@@ -127,21 +139,31 @@ async function carregarSolicitacoes() {
         .sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')));
 }
 
-async function iniciarSeparacao(solicitacaoId) {
+async function alternarSeparacao(solicitacaoId) {
     const solicitacao = solicitacoes.find((item) => item.id === solicitacaoId);
-    if (!solicitacao || solicitacao.status !== 'solicitado') return;
+    if (!solicitacao || !['solicitado', 'separando'].includes(solicitacao.status)) return;
 
     const now = new Date().toISOString();
     const operadorCpf = sessionStorage.getItem('userCPF') || '';
     const operadorNome = sessionStorage.getItem('userName') || 'Vendedor';
-    const statusData = {
-        status: 'separando',
-        statusLabel: 'Separando',
-        separacaoIniciadaPorCpf: operadorCpf,
-        separacaoIniciadaPorNome: operadorNome,
-        separacaoIniciadaEm: now,
-        atualizadoEm: now
-    };
+    const isSeparating = solicitacao.status === 'separando';
+    const statusData = isSeparating
+        ? {
+            status: 'solicitado',
+            statusLabel: 'Aguardando separação',
+            separacaoPausadaPorCpf: operadorCpf,
+            separacaoPausadaPorNome: operadorNome,
+            separacaoPausadaEm: now,
+            atualizadoEm: now
+        }
+        : {
+            status: 'separando',
+            statusLabel: 'Separando',
+            separacaoIniciadaPorCpf: operadorCpf,
+            separacaoIniciadaPorNome: operadorNome,
+            separacaoIniciadaEm: now,
+            atualizadoEm: now
+        };
 
     await update(ref(database), {
         [`solicitacoes/${solicitacaoId}`]: {
@@ -158,7 +180,7 @@ async function iniciarSeparacao(solicitacaoId) {
             solicitanteCpf: solicitacao.solicitanteCpf,
             solicitanteNome: solicitacao.solicitanteNome,
             criadoEm: solicitacao.criadoEm || now,
-            separacaoIniciadaEm: now,
+            ...(isSeparating ? { separacaoPausadaEm: now } : { separacaoIniciadaEm: now }),
             atualizadoEm: now
         }
     });
@@ -241,7 +263,7 @@ async function cancelarSolicitacao(solicitacaoId) {
     const solicitacao = solicitacoes.find((item) => item.id === solicitacaoId);
     if (!solicitacao || !['solicitado', 'separando'].includes(solicitacao.status)) return false;
 
-    const confirmed = confirm('Deseja cancelar esta solicitacao? Os itens voltarao para o estoque.');
+    const confirmed = confirm('Deseja cancelar esta solicitação? Os itens voltarão para o estoque.');
     if (!confirmed) return false;
 
     const now = new Date().toISOString();
@@ -307,7 +329,7 @@ export async function initPage() {
                 button.disabled = true;
                 button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
                 const solicitacaoId = button.getAttribute('data-id');
-                if (action === 'separate') await iniciarSeparacao(solicitacaoId);
+                if (action === 'toggle-separation') await alternarSeparacao(solicitacaoId);
                 if (action === 'ready') await marcarPronto(solicitacaoId);
                 if (action === 'cancel') {
                     const canceled = await cancelarSolicitacao(solicitacaoId);
@@ -317,17 +339,17 @@ export async function initPage() {
                     }
                 }
             } catch (error) {
-                console.error('Erro ao atualizar solicitacao:', error);
+                console.error('Erro ao atualizar solicitação:', error);
                 button.disabled = false;
                 button.innerHTML = originalHtml;
-                alert('Nao foi possivel atualizar a solicitacao: ' + error.message);
+                alert('Não foi possível atualizar a solicitação: ' + error.message);
             }
         };
     } catch (error) {
-        console.error('Erro ao carregar solicitacoes:', error);
+        console.error('Erro ao carregar solicitações:', error);
         content.innerHTML = `
             <div class="alert alert-danger mb-0">
-                <h4 class="alert-heading">Erro ao carregar solicitacoes</h4>
+                <h4 class="alert-heading">Erro ao carregar solicitações</h4>
                 <p class="mb-0">${escapeHtml(error.message || 'Erro desconhecido.')}</p>
             </div>
         `;

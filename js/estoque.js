@@ -1,11 +1,12 @@
 import { database } from './firebase-config.js';
-import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 import { uploadImagemCloudinary, deletarImagemCloudinary } from './cloudinary-config.js';
 
 let products = [];
 let selectedProduct = null;
 let pendingImages = [];
 let removedImageKeys = new Set();
+let unsubscribeProducts = null;
 
 function getById(id) {
     return document.getElementById(id);
@@ -80,12 +81,16 @@ function revokePendingPreviews() {
     pendingImages = [];
 }
 
-async function loadProducts() {
-    const snapshot = await get(ref(database, 'produtos'));
+function setProductsFromSnapshot(snapshot) {
     products = Object.entries(snapshot.val() || {})
         .filter(([id]) => id !== 'link_prod')
         .map(([id, product]) => ({ id, ...product }))
         .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' }));
+}
+
+async function loadProducts() {
+    const snapshot = await get(ref(database, 'produtos'));
+    setProductsFromSnapshot(snapshot);
 }
 
 function renderProducts() {
@@ -97,7 +102,7 @@ function renderProducts() {
             <div class="empty-state">
                 <i class="fas fa-box-open"></i>
                 <h2>Nenhum produto cadastrado</h2>
-                <p>Os produtos salvos em cadastro aparecerao aqui.</p>
+                <p>Os produtos salvos em cadastro aparecerão aqui.</p>
             </div>
         `;
         return;
@@ -108,12 +113,12 @@ function renderProducts() {
             <table class="table align-middle">
                 <thead>
                     <tr>
-                        <th>Codigo</th>
+                        <th>Código</th>
                         <th>Produto</th>
                         <th>Quantidade</th>
-                        <th>Preco</th>
-                        <th>Descricao</th>
-                        <th class="text-end">Acoes</th>
+                        <th>Preço</th>
+                        <th>Descrição</th>
+                        <th class="text-end">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -150,7 +155,7 @@ function renderEditModal() {
                     <div class="modal-body">
                         <form id="produtoEditForm" class="row g-3">
                             <div class="col-12 col-lg-3">
-                                <label class="form-label" for="editProdutoCodigo">Codigo</label>
+                                <label class="form-label" for="editProdutoCodigo">Código</label>
                                 <input id="editProdutoCodigo" class="form-control" disabled>
                             </div>
                             <div class="col-12 col-lg-5">
@@ -162,18 +167,18 @@ function renderEditModal() {
                                 <input id="editProdutoQuantidade" class="form-control" type="number" min="0" step="1">
                             </div>
                             <div class="col-12 col-lg-2">
-                                <label class="form-label" for="editProdutoPreco">Preco</label>
+                                <label class="form-label" for="editProdutoPreco">Preço</label>
                                 <input id="editProdutoPreco" class="form-control" type="number" min="0" step="0.01">
                             </div>
                             <div class="col-12">
-                                <label class="form-label" for="editProdutoDescricao">Descricao</label>
+                                <label class="form-label" for="editProdutoDescricao">Descrição</label>
                                 <textarea id="editProdutoDescricao" class="form-control" rows="3"></textarea>
                             </div>
                             <div class="col-12">
                                 <div class="d-flex flex-column flex-md-row justify-content-between gap-2 align-items-md-center">
                                 <div>
                                     <label class="form-label mb-1">Imagens</label>
-                                    <div class="form-text">Imagens novas e remocoes ficam pendentes ate salvar. Uploads e exclusoes usam a pasta Cloudinary produtos.</div>
+                                    <div class="form-text">Imagens novas e remoções ficam pendentes até salvar. Uploads e exclusões usam a pasta Cloudinary produtos.</div>
                                 </div>
                                     <div>
                                         <input id="produtoImagemInput" type="file" class="d-none" multiple accept=".jpg,.jpeg,.png,.webp">
@@ -409,9 +414,20 @@ export async function initPage() {
     if (!content) return;
 
     try {
-        await loadProducts();
-        renderProducts();
-        bindEvents();
+        if (unsubscribeProducts) unsubscribeProducts();
+        unsubscribeProducts = onValue(ref(database, 'produtos'), (snapshot) => {
+            setProductsFromSnapshot(snapshot);
+            renderProducts();
+            bindEvents();
+        }, (error) => {
+            console.error('Erro ao carregar estoque:', error);
+            content.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <h4 class="alert-heading">Erro ao carregar estoque</h4>
+                    <p class="mb-0">${escapeHtml(error.message || 'Erro desconhecido.')}</p>
+                </div>
+            `;
+        });
     } catch (error) {
         console.error('Erro ao carregar estoque:', error);
         content.innerHTML = `

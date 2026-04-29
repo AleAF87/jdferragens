@@ -91,7 +91,7 @@ function fillGoogleFields(user) {
         accountBox.innerHTML = `
             <div>
                 <span class="section-label">Conta vinculada</span>
-                <p class="mb-0"><strong>${escapeHtml(user.displayName || 'Usuario Google')}</strong></p>
+                <p class="mb-0"><strong>${escapeHtml(user.displayName || 'Usuário Google')}</strong></p>
                 <p class="mb-0 text-muted">${escapeHtml(user.email || '')}</p>
             </div>
             <button id="changeGoogleAccountBtn" type="button" class="btn btn-outline-secondary">
@@ -120,10 +120,10 @@ async function signInGoogle() {
         state.googleUser = credential.user;
         fillGoogleFields(state.googleUser);
         setFormEnabled(true);
-        showAlert('Conta Google vinculada. Complete os dados e envie para aprovacao.', 'success');
+        showAlert('Conta Google vinculada. Complete os dados e envie para aprovação.', 'success');
     } catch (error) {
         console.error('Erro no cadastro com Google:', error);
-        showAlert(`Nao foi possivel entrar com Google: ${escapeHtml(error.message)}`, 'danger');
+        showAlert(`Não foi possível entrar com Google: ${escapeHtml(error.message)}`, 'danger');
     } finally {
         if (button) {
             button.disabled = false;
@@ -136,7 +136,7 @@ async function buscarCep() {
     const cepInput = getById('cadastroCep');
     const cep = onlyDigits(cepInput?.value || '');
     if (cep.length !== 8) {
-        showAlert('Informe um CEP valido com 8 numeros.', 'warning');
+        showAlert('Informe um CEP válido com 8 números.', 'warning');
         return;
     }
 
@@ -152,7 +152,7 @@ async function buscarCep() {
         const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
         const data = await response.json();
         if (data.erro) {
-            showAlert('CEP nao encontrado. Preencha o endereco manualmente.', 'warning');
+            showAlert('CEP não encontrado. Preencha o endereço manualmente.', 'warning');
             return;
         }
 
@@ -163,7 +163,7 @@ async function buscarCep() {
         getById('cadastroNumero')?.focus();
     } catch (error) {
         console.error('Erro ao buscar CEP:', error);
-        showAlert('Nao foi possivel consultar o CEP agora.', 'danger');
+        showAlert('Não foi possível consultar o CEP agora.', 'danger');
     } finally {
         if (button) {
             button.disabled = false;
@@ -183,7 +183,7 @@ function collectFormData() {
 
     if (!state.googleUser) errors.push('Entre com sua conta Google antes de enviar.');
     if (!isValidCPF(cpf)) {
-        errors.push('Informe um CPF valido.');
+        errors.push('Informe um CPF válido.');
         invalidFieldIds.push('cadastroCpf');
     }
     if (!nome) {
@@ -192,7 +192,7 @@ function collectFormData() {
     }
     if (!email) errors.push('A conta Google precisa ter um e-mail.');
     if (whatsapp && (whatsapp.length < 10 || whatsapp.length > 11)) {
-        errors.push('Informe um WhatsApp valido.');
+        errors.push('Informe um WhatsApp válido.');
         invalidFieldIds.push('cadastroWhatsapp');
     }
 
@@ -244,10 +244,10 @@ async function ensureCpfAvailable(cpf, googleUid) {
     const existingUid = loginData.uid || userData.uid || '';
 
     if (existingUid && existingUid === googleUid) {
-        throw new Error('Voce ja possui uma solicitacao cadastrada. Aguarde a aprovacao do administrador.');
+        throw new Error('Você já possui uma solicitação cadastrada. Aguarde a aprovação do administrador.');
     }
 
-    throw new Error(`O CPF ${formatCPF(cpf)} ja possui cadastro no sistema.`);
+    throw new Error(`O CPF ${formatCPF(cpf)} já possui cadastro no sistema.`);
 }
 
 async function submitSignup(event) {
@@ -306,7 +306,7 @@ async function submitSignup(event) {
 
         showAlert(`
             <h4 class="alert-heading">Cadastro enviado com sucesso</h4>
-            <p>Sua solicitacao foi registrada e esta aguardando aprovacao do administrador.</p>
+            <p>Sua solicitação foi registrada e está aguardando aprovação do administrador.</p>
             <a href="index.html" class="btn btn-primary mt-2" data-ignore-spa="true">Voltar ao login</a>
         `, 'success');
 
@@ -317,7 +317,7 @@ async function submitSignup(event) {
         if (error.name === 'ValidationError') {
             showAlert(state.validationMessage || escapeHtml(error.message), 'danger');
         } else {
-            showAlert(escapeHtml(error.message || 'Nao foi possivel enviar o cadastro.'), 'danger');
+            showAlert(escapeHtml(error.message || 'Não foi possível enviar o cadastro.'), 'danger');
         }
         if (submitBtn) submitBtn.disabled = false;
     } finally {
